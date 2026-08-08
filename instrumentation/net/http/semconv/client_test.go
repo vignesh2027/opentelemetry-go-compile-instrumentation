@@ -268,3 +268,44 @@ func TestHTTPClientScheme(t *testing.T) {
 		})
 	}
 }
+
+// An unrecognised method must not be folded into real GET traffic. The spec
+// requires _OTHER for anything the instrumentation does not know, with the raw
+// value preserved separately in http.request.method_original. An empty method
+// has no original worth recording, so only _OTHER is reported.
+func TestHTTPClientMethod(t *testing.T) {
+	client := NewHTTPClient(nil)
+
+	tests := []struct {
+		name         string
+		method       string
+		wantMethod   string
+		wantOriginal string // empty means no method_original attribute is expected
+	}{
+		{"canonical method", "GET", "GET", ""},
+		{"another canonical method", "POST", "POST", ""},
+		{"lowercase is normalised and kept as original", "get", "GET", "get"},
+		{"mixed case is normalised and kept as original", "PoSt", "POST", "PoSt"},
+		{"QUERY is recognised", "QUERY", "QUERY", ""},
+		{"unknown method is _OTHER and keeps the original", "CUSTOM", "_OTHER", "CUSTOM"},
+		{"another unknown method", "FOOBAR", "_OTHER", "FOOBAR"},
+		{"empty method is _OTHER with no original", "", "_OTHER", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			method, original := client.method(tt.method)
+
+			assert.Equal(t, "http.request.method", string(method.Key))
+			assert.Equal(t, tt.wantMethod, method.Value.AsString())
+
+			if tt.wantOriginal == "" {
+				assert.False(t, original.Valid(),
+					"expected no http.request.method_original attribute")
+				return
+			}
+			assert.Equal(t, "http.request.method_original", string(original.Key))
+			assert.Equal(t, tt.wantOriginal, original.Value.AsString())
+		})
+	}
+}

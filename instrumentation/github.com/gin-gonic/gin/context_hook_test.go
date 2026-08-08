@@ -378,3 +378,27 @@ func TestAfterNext_NonRecordingSpanSkipsRecording(t *testing.T) {
 
 	assert.Empty(t, sr.Ended(), "non-recording span must not produce any recorded spans")
 }
+
+// Unknown verbs must not reach the span name after a gin route match; the spec
+// requires HTTP whenever http.request.method would be _OTHER.
+func TestSpanNameMethod(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		expected string
+	}{
+		{"canonical method", "GET", "GET"},
+		{"another canonical method", "DELETE", "DELETE"},
+		{"lowercase is normalised", "post", "POST"},
+		{"mixed case is normalised", "PaTcH", "PATCH"},
+		{"QUERY is recognised", "QUERY", "QUERY"},
+		{"unknown method becomes HTTP", "CUSTOM", "HTTP"},
+		{"empty method becomes HTTP", "", "HTTP"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, spanNameMethod(tt.method))
+		})
+	}
+}

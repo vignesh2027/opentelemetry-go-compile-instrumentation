@@ -4,6 +4,9 @@
 package server
 
 import (
+	"net/http"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
@@ -76,7 +79,7 @@ func BeforeNext(ictx hook.HookContext, c *gin.Context) {
 	// later recording span on the same request from being enriched.
 	c.Set(routeSetKey, struct{}{})
 
-	span.SetName(c.Request.Method + " " + route)
+	span.SetName(spanNameMethod(c.Request.Method) + " " + route)
 	span.SetAttributes(semconv.HTTPRouteKey.String(route))
 
 	logger.Debug("gin route resolved", "route", route)
@@ -118,5 +121,25 @@ func AfterNext(ictx hook.HookContext) {
 	span.SetStatus(codes.Error, c.Errors.String())
 	for _, e := range c.Errors {
 		span.RecordError(e.Err)
+	}
+}
+
+// spanNameMethod returns the method token to use in a span name. HTTP semantic
+// conventions require HTTP rather than the raw value whenever the method is not
+// one the instrumentation recognises, which keeps unknown verbs out of span
+// names. Recognised methods are normalised, so a lowercase "get" still names
+// the span GET.
+//
+// The net/http instrumentation applies the same rule, but it lives in a separate
+// module, so the list is repeated here rather than imported across that boundary.
+func spanNameMethod(method string) string {
+	upper := strings.ToUpper(method)
+	switch upper {
+	case http.MethodConnect, http.MethodDelete, http.MethodGet, http.MethodHead,
+		http.MethodOptions, http.MethodPatch, http.MethodPost, http.MethodPut,
+		http.MethodTrace, "QUERY":
+		return upper
+	default:
+		return "HTTP"
 	}
 }

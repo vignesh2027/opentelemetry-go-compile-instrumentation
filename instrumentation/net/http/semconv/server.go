@@ -363,7 +363,7 @@ func (n HTTPServer) MetricAttributes(
 // method returns the HTTP method attribute and optional original method attribute.
 func (HTTPServer) method(method string) (attribute.KeyValue, attribute.KeyValue) {
 	if method == "" {
-		return semconv.HTTPRequestMethodGet, attribute.KeyValue{}
+		return semconv.HTTPRequestMethodOther, attribute.KeyValue{}
 	}
 	if attr, ok := MethodLookup[method]; ok {
 		return attr, attribute.KeyValue{}
@@ -373,7 +373,7 @@ func (HTTPServer) method(method string) (attribute.KeyValue, attribute.KeyValue)
 	if attr, ok := MethodLookup[strings.ToUpper(method)]; ok {
 		return attr, orig
 	}
-	return semconv.HTTPRequestMethodGet, orig
+	return semconv.HTTPRequestMethodOther, orig
 }
 
 // scheme returns the URL scheme attribute.
@@ -446,8 +446,22 @@ func HTTPServerRoute(route string) attribute.KeyValue {
 
 // HTTPServerSpanName returns the span name for an HTTP server request.
 func HTTPServerSpanName(method, route string) string {
+	name := SpanNameMethod(method)
 	if route != "" {
-		return method + " " + route
+		return name + " " + route
 	}
-	return method
+	return name
+}
+
+// SpanNameMethod returns the method token to use in a span name. The spec
+// requires HTTP rather than the raw value whenever http.request.method would be
+// _OTHER, so unrecognised and empty methods never reach the span name. Known
+// methods are normalised to their canonical spelling, so "get" names the span
+// GET while the original casing is still reported separately.
+func SpanNameMethod(method string) string {
+	upper := strings.ToUpper(method)
+	if _, ok := MethodLookup[upper]; ok {
+		return upper
+	}
+	return "HTTP"
 }

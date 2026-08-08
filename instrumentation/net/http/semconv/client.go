@@ -222,7 +222,7 @@ func (HTTPClient) ErrorType(err error) attribute.KeyValue {
 // method returns the HTTP method attribute and optional original method attribute.
 func (HTTPClient) method(method string) (attribute.KeyValue, attribute.KeyValue) {
 	if method == "" {
-		return semconv.HTTPRequestMethodGet, attribute.KeyValue{}
+		return semconv.HTTPRequestMethodOther, attribute.KeyValue{}
 	}
 	if attr, ok := MethodLookup[method]; ok {
 		return attr, attribute.KeyValue{}
@@ -232,7 +232,7 @@ func (HTTPClient) method(method string) (attribute.KeyValue, attribute.KeyValue)
 	if attr, ok := MethodLookup[strings.ToUpper(method)]; ok {
 		return attr, orig
 	}
-	return semconv.HTTPRequestMethodGet, orig
+	return semconv.HTTPRequestMethodOther, orig
 }
 
 // MetricAttributes returns attributes for HTTP client metrics.
